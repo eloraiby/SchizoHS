@@ -34,7 +34,21 @@ alphaLow =
 
 alpha = alphaUp ||| alphaLow
 
-char c = Predicate (\x -> x == c)
+isChar  :: Char
+        -> Predicate Char
+
+isChar c = Predicate (\x -> x == c)
+
+oneOrMore   :: a
+            -> Match a
+            -> Match a
+
+oneOrMore a stream =
+    case stream of
+        Match (tokenList, charList) ->
+            Match (tokenList, charList)
+        Unmatched _ -> stream
+
 
 
 
