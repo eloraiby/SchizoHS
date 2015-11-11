@@ -6,7 +6,7 @@ version:             0.1.0.0
 synopsis:            Schizo Macro Language
 -- description:         
 homepage:            https://github.com/eloraiby/SchizoHS
-license:             Affero GPL
+license:             AGPL-3
 license-file:        LICENSE
 author:              Wael El Oraiby
 maintainer:          wael.eloraiby@gmail.com
