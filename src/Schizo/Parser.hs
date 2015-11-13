@@ -42,21 +42,20 @@ isChar c = Predicate (\x -> x == c)
 --------------------------------------------------------------------------------
 -- one or more element (A+)
 --------------------------------------------------------------------------------
-oneOrMore   :: Eq a
-            => a
+oneOrMore   :: Predicate a
             -> Match a
             -> Match a
 
-oneOrMore a stream =
-    case stream of
-        Match (tokenList, charList) ->
+oneOrMore pa stream =
+    case (pa, stream) of
+        (Predicate pa, Match (tokenList, charList)) ->
             let (tok, cList) = loop [] charList
-            in  Match (tok : tokenList, charList)
+            in  Match (tok : tokenList, cList)
             where loop tok cList =
                     case cList of
-                       h : t | h == a -> loop (a : tok) t
+                       h : t | pa h -> loop (h : tok) t
                        _ -> ((Token (reverse tok)), cList)
-        Unmatched _ -> error "trying to process unmatched stream"
+        (_, Unmatched _) -> error "trying to process unmatched stream"
 
 
 
