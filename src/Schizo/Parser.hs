@@ -48,6 +48,25 @@ oneOrMore   :: Predicate a
 
 oneOrMore pa stream =
     case (pa, stream) of
+        (Predicate pa, Match (tokenList, h:charList)) | pa h ->
+            let (tok, cList) = loop [h] charList
+            in  Match (tok : tokenList, cList)
+            where loop tok cList =
+                    case cList of
+                       h : t | pa h -> loop (h : tok) t
+                       _ -> ((Token (reverse tok)), cList)
+        (Predicate pa, Match (tokenList, charList)) -> Unmatched (tokenList, charList)
+        (_, _) -> error "trying to process unmatched stream"
+
+--------------------------------------------------------------------------------
+-- Zero or more element (A*)
+--------------------------------------------------------------------------------
+zeroOrMore  :: Predicate a
+            -> Match a
+            -> Match a
+
+zeroOrMore pa stream =
+    case (pa, stream) of
         (Predicate pa, Match (tokenList, charList)) ->
             let (tok, cList) = loop [] charList
             in  Match (tok : tokenList, cList)
@@ -55,8 +74,32 @@ oneOrMore pa stream =
                     case cList of
                        h : t | pa h -> loop (h : tok) t
                        _ -> ((Token (reverse tok)), cList)
-        (_, Unmatched _) -> error "trying to process unmatched stream"
+        (_, _) -> error "trying to process unmatched stream"
 
+--------------------------------------------------------------------------------
+-- unit test
+--------------------------------------------------------------------------------
+parserTests = do
+    let str = "12345678abcde"
 
+    putStrLn "One or More..."
+    let am1 = oneOrMore digit (Match ([], str))
+    let am2 = oneOrMore alpha am1
+    putStrLn (show am1)
+    putStrLn (show am2)
 
+    let am1 = oneOrMore alpha (Match ([], str))
+    let am2 = oneOrMore digit am1
+    putStrLn (show am1)
+    -- this will fail putStrLn (show am2)
 
+    putStrLn "Zero or More..."
+    let am1 = zeroOrMore digit (Match ([], str))
+    let am2 = zeroOrMore alpha am1
+    putStrLn (show am1)
+    putStrLn (show am2)
+
+    let am1 = zeroOrMore alpha (Match ([], str))
+    let am2 = zeroOrMore digit am1
+    putStrLn (show am1)
+    putStrLn (show am2)

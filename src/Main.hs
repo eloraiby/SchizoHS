@@ -8,5 +8,6 @@ main :: IO ()
 main = do
     let str = "12345678abcde"
     let am = oneOrMore digit (Match ([], str))
-    putStrLn (show am)
+    let am2 = oneOrMore alpha am
+    parserTests
     putStrLn ("Hello World" ++ show (Token ['a', 'b']))
