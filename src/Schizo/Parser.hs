@@ -1,3 +1,6 @@
+--
+-- This will be rewritten in parsec after. Now it's done the hard way for learning purposes
+--
 module Schizo.Parser where
 
 data Predicate a = Predicate (a -> Bool)
@@ -77,6 +80,23 @@ zeroOrMore pa stream =
         (_, _) -> error "trying to process unmatched stream"
 
 --------------------------------------------------------------------------------
+-- exact string
+--------------------------------------------------------------------------------
+exactList :: Eq a
+          => [a]
+          -> Match a
+          -> Match a
+
+exactList xs stream =
+    let xsLen = length xs
+    in case stream of
+        Match (tokenList, charList) | xsLen <= length charList && take (length xs) charList == xs ->
+            Match (Token xs : tokenList, drop xsLen charList)
+        Match (tokenList, charList) -> Unmatched (tokenList, charList)
+        Unmatched _ -> error "trying to process unmatched stream"
+
+
+--------------------------------------------------------------------------------
 -- unit test
 --------------------------------------------------------------------------------
 parserTests = do
@@ -101,5 +121,11 @@ parserTests = do
 
     let am1 = zeroOrMore alpha (Match ([], str))
     let am2 = zeroOrMore digit am1
+    putStrLn (show am1)
+    putStrLn (show am2)
+
+    putStrLn "Exact list..."
+    let am1 = exactList "123456" (Match ([], str))
+    let am2 = exactList "124446" (Match ([], str))
     putStrLn (show am1)
     putStrLn (show am2)
