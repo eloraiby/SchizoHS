@@ -6,8 +6,5 @@ testString  = [ "a b c d",
                 "ab cd ef gh" ]
 main :: IO ()
 main = do
-    let str = "12345678abcde"
-    let am = oneOrMore digit (Match ([], str))
-    let am2 = oneOrMore alpha am
-    parserTests
-    putStrLn ("Hello World" ++ show (Token ['a', 'b']))
+    exp <- return "{1 a [hello a; hello b; 2 hi there I am 1 2.3 ]}"
+    putStrLn (readExpr exp)

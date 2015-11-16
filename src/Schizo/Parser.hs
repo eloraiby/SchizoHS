@@ -1,131 +1,84 @@
---
--- This will be rewritten in parsec after. Now it's done the hard way for learning purposes
---
 module Schizo.Parser where
 
-data Predicate a = Predicate (a -> Bool)
+import Text.ParserCombinators.Parsec hiding (spaces)
+import qualified Text.Parsec.Prim as ParsecPrim
+import Text.Parsec.Combinator as ParsecComb
 
-Predicate a ||| Predicate b = Predicate (\x -> a x || b x)
-Predicate a &&& Predicate b = Predicate (\x -> a x && b x)
+import System.Environment
+import Control.Monad
 
-data Token a = Token [a] deriving Show
-
-data Match a = Match     ([Token a], [a])
-             | Unmatched ([Token a], [a])
+data SchExp  = Symbol       String
+             | Operator     String
+             | List         [SchExp]
+             | Tuple        [SchExp]
+             | Sequence     [SchExp]
+             | Application  (SchExp, [SchExp])
+             | Int64        Integer
+             | Float64      Double
+             | String       String
+             | Bool         Bool
              deriving Show
 
-digit =
-    let isDigit x =
-         case x of
-            x | x >= '0' && x <= '9' -> True
-            _ -> False
-    in Predicate isDigit
+spaces :: Parser ()
+spaces = skipMany space
 
-alphaUp =
-    let isAlphaUp x =
-          case x of
-             x | x >= 'A' && x <= 'Z' -> True
-             _ -> False
-    in Predicate isAlphaUp
-
-alphaLow =
-    let isAlphaLow x =
-         case x of
-            x | x >= 'a' && x <= 'z' -> True
-            _ -> False
-    in Predicate isAlphaLow
-
-alpha = alphaUp ||| alphaLow
-
-isChar  :: Char
-        -> Predicate Char
-
-isChar c = Predicate (\x -> x == c)
-
---------------------------------------------------------------------------------
--- one or more element (A+)
---------------------------------------------------------------------------------
-oneOrMore   :: Predicate a
-            -> Match a
-            -> Match a
-
-oneOrMore pa stream =
-    case (pa, stream) of
-        (Predicate pa, Match (tokenList, h:charList)) | pa h ->
-            let (tok, cList) = loop [h] charList
-            in  Match (tok : tokenList, cList)
-            where loop tok cList =
-                    case cList of
-                       h : t | pa h -> loop (h : tok) t
-                       _ -> ((Token (reverse tok)), cList)
-        (Predicate pa, Match (tokenList, charList)) -> Unmatched (tokenList, charList)
-        (_, _) -> error "trying to process unmatched stream"
-
---------------------------------------------------------------------------------
--- Zero or more element (A*)
---------------------------------------------------------------------------------
-zeroOrMore  :: Predicate a
-            -> Match a
-            -> Match a
-
-zeroOrMore pa stream =
-    case (pa, stream) of
-        (Predicate pa, Match (tokenList, charList)) ->
-            let (tok, cList) = loop [] charList
-            in  Match (tok : tokenList, cList)
-            where loop tok cList =
-                    case cList of
-                       h : t | pa h -> loop (h : tok) t
-                       _ -> ((Token (reverse tok)), cList)
-        (_, _) -> error "trying to process unmatched stream"
-
---------------------------------------------------------------------------------
--- exact string
---------------------------------------------------------------------------------
-exactList :: Eq a
-          => [a]
-          -> Match a
-          -> Match a
-
-exactList xs stream =
-    let xsLen = length xs
-    in case stream of
-        Match (tokenList, charList) | xsLen <= length charList && take (length xs) charList == xs ->
-            Match (Token xs : tokenList, drop xsLen charList)
-        Match (tokenList, charList) -> Unmatched (tokenList, charList)
-        Unmatched _ -> error "trying to process unmatched stream"
+parseOperator :: Parser SchExp
+parseOperator = liftM Operator $ many1 (oneOf "!#$%&|*+-/:<=>?@^~.")
 
 
---------------------------------------------------------------------------------
--- unit test
---------------------------------------------------------------------------------
-parserTests = do
-    let str = "12345678abcde"
+parseString :: Parser SchExp
+parseString = do
+    char '"'
+    x <- many (noneOf "\"")
+    char '"'
+    return $ String x
 
-    putStrLn "One or More..."
-    let am1 = oneOrMore digit (Match ([], str))
-    let am2 = oneOrMore alpha am1
-    putStrLn (show am1)
-    putStrLn (show am2)
+parseSymbol :: Parser SchExp
+parseSymbol = do
+    first <- letter <|> (oneOf "_")
+    rest <- many (letter <|> digit <|> (oneOf "_"))
+    let symbol = first : rest
+    return $ case symbol of
+               "true" -> Bool True
+               "false" -> Bool False
+               _    -> Symbol symbol
 
-    let am1 = oneOrMore alpha (Match ([], str))
-    let am2 = oneOrMore digit am1
-    putStrLn (show am1)
-    -- this will fail putStrLn (show am2)
+parseInt64 :: Parser SchExp
+parseInt64 = liftM (Int64 . read) $ many1 digit
 
-    putStrLn "Zero or More..."
-    let am1 = zeroOrMore digit (Match ([], str))
-    let am2 = zeroOrMore alpha am1
-    putStrLn (show am1)
-    putStrLn (show am2)
+parseExpr :: Parser SchExp
+parseExpr = do
+     spaces
+     parseSymbol
+     <|> parseOperator
+     <|> parseString
+     <|> parseInt64
+     <|> parseBlock '[' ']' List
+     <|> parseBlock '{' '}' Sequence
+     <|> parseBlock '(' ')' Tuple
 
-    let am1 = zeroOrMore alpha (Match ([], str))
-    let am2 = zeroOrMore digit am1
-    putStrLn (show am1)
-    putStrLn (show am2)
 
-    putStrLn "Exact list..."
-    let am1 = exactList "123456" (Match ([], str))
-    let am2 = exactList "124446" (Match ([], str))
-    putStrLn (show am1)
-    putStrLn (show am2)
+readExpr :: String -> String
+readExpr input = case parse parseExpr "schizo" input of
+    Left err -> "No match: " ++ show err
+    Right exp -> "Found value: " ++ show exp
+
+parseBlock :: Char -> Char -> ([SchExp] -> SchExp) -> Parser SchExp
+parseBlock co cc f = do
+    char co
+    spaces
+    x <- {- try (liftM f $ many1 (do { x <- parseApp; char ';'; return x }))
+         <|> -} (liftM f $ sepBy parseApp (char ';'))
+    spaces
+    char cc
+    return x
+
+parseApp :: Parser SchExp
+parseApp = do
+    (h : t) <- many1 parseExpr
+    spaces
+    return $ case t of
+        [] -> h
+        _  -> Application (h, t)
+
+
