@@ -48,15 +48,14 @@ parseInt64 = liftM (Int64 . read) $ many1 digit
 
 parseExpr :: Parser SchExp
 parseExpr = do
-     spaces
-     parseSymbol
-     <|> parseOperator
-     <|> parseString
-     <|> parseInt64
-     <|> parseBlock '[' ']' List
-     <|> parseBlock '{' '}' Sequence
-     <|> parseBlock '(' ')' Tuple
-
+     spaces >>
+         (parseInt64
+         <|> parseBlock '[' ']' List
+         <|> parseBlock '{' '}' Sequence
+         <|> parseBlock '(' ')' Tuple
+         <|> parseSymbol
+         <|> parseOperator
+         <|> parseString) <* spaces
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "schizo" input of
@@ -66,17 +65,14 @@ readExpr input = case parse parseExpr "schizo" input of
 parseBlock :: Char -> Char -> ([SchExp] -> SchExp) -> Parser SchExp
 parseBlock co cc f = do
     char co
-    spaces
     x <- {- try (liftM f $ many1 (do { x <- parseApp; char ';'; return x }))
          <|> -} (liftM f $ sepBy parseApp (char ';'))
-    spaces
     char cc
     return x
 
 parseApp :: Parser SchExp
 parseApp = do
     (h : t) <- many1 parseExpr
-    spaces
     return $ case t of
         [] -> h
         _  -> Application (h, t)
