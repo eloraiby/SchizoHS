@@ -52,17 +52,17 @@ parseExpr :: Parser SchExp
 parseExpr = do
      spaces >>
          (parseInt64
-         <|> parseBlock '[' ']' List
-         <|> parseBlock '{' '}' Sequence
-         <|> parseBlock '(' ')' Tuple
+         <|> parseBlock '[' ']' ',' List
+         <|> parseBlock '{' '}' ';' Sequence
+         <|> parseBlock '(' ')' ',' Tuple
          <|> parseSymbol
          <|> parseOperator
          <|> parseString) <* spaces
 
-parseBlock :: Char -> Char -> ([SchExp] -> SchExp) -> Parser SchExp
-parseBlock co cc f = do
+parseBlock :: Char -> Char -> Char -> ([SchExp] -> SchExp) -> Parser SchExp
+parseBlock co cc sep f = do
     char co
-    x <- (liftM f $ sepBy parseApp (char ';'))
+    x <- (liftM f $ sepBy parseApp (char sep))
     char cc
     return x
 
