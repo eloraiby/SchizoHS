@@ -48,10 +48,26 @@ parseInt64 = liftM (Int64 . read) $ do {
         y <- many1 digit
         return $ x : y) }
 
+-- D			[0-9]
+-- L			[a-zA-Z_]
+-- H			[a-fA-F0-9]
+-- E			[Ee][+-]?{D}+
+-- {D}+{E}{FS}?		{ count(); return(CONSTANT); }
+-- {D}*"."{D}+({E})?{FS}?	{ count(); return(CONSTANT); }
+-- {D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
+
+parseFloat64 :: Parser SchExp
+parseFloat64 = liftM (Float64 . read) $
+    do  intPart <- many1 digit
+        char 'E' <|> char 'e'
+        sign <- char '+' <|> char '-'
+        expPart <- many1 digit
+        return $ intPart ++ sign : expPart
+
 parseExpr :: Parser SchExp
 parseExpr = do
      spaces >>
-         (parseInt64
+         ((choice [parseFloat64, parseInt64])
          <|> parseBlock '[' ']' ',' List
          <|> parseBlock '{' '}' ';' Sequence
          <|> parseBlock '(' ')' ',' Tuple
