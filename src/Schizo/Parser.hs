@@ -1,10 +1,6 @@
 module Schizo.Parser where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
-import qualified Text.Parsec.Prim as ParsecPrim
-import Text.Parsec.Combinator as ParsecComb
-
-import System.Environment
 import Control.Monad
 
 data SchExp  = Symbol       String
@@ -44,7 +40,13 @@ parseSymbol = do
                _    -> Symbol symbol
 
 parseInt64 :: Parser SchExp
-parseInt64 = liftM (Int64 . read) $ many1 digit
+parseInt64 = liftM (Int64 . read) $ do {
+    (char '+' >> many1 digit)
+    <|> many1 digit
+    <|> (do
+        x <- char '-'
+        y <- many1 digit
+        return $ x : y) }
 
 parseExpr :: Parser SchExp
 parseExpr = do
@@ -57,16 +59,10 @@ parseExpr = do
          <|> parseOperator
          <|> parseString) <* spaces
 
-readExpr :: String -> String
-readExpr input = case parse parseExpr "schizo" input of
-    Left err -> "No match: " ++ show err
-    Right exp -> "Found value: " ++ show exp
-
 parseBlock :: Char -> Char -> ([SchExp] -> SchExp) -> Parser SchExp
 parseBlock co cc f = do
     char co
-    x <- {- try (liftM f $ many1 (do { x <- parseApp; char ';'; return x }))
-         <|> -} (liftM f $ sepBy parseApp (char ';'))
+    x <- (liftM f $ sepBy parseApp (char ';'))
     char cc
     return x
 
@@ -77,4 +73,8 @@ parseApp = do
         [] -> h
         _  -> Application (h, t)
 
+readExpr :: String -> String
+readExpr input = case parse parseExpr "schizo" input of
+    Left err -> "No match: " ++ show err
+    Right v -> "Found value: " ++ show v
 
