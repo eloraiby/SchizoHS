@@ -2,18 +2,9 @@ module Schizo.Parser where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
+import Data.Map
+import Schizo.Expression
 
-data SchExp  = Symbol       String
-             | Operator     String
-             | List         [SchExp]
-             | Tuple        [SchExp]
-             | Sequence     [SchExp]
-             | Application  (SchExp, [SchExp])
-             | Int64        Integer
-             | Float64      Double
-             | String       String
-             | Bool         Bool
-             deriving Show
 
 spaces :: Parser ()
 spaces = skipMany space
@@ -21,12 +12,11 @@ spaces = skipMany space
 parseOperator :: Parser SchExp
 parseOperator = liftM Operator $ many1 (oneOf "!#$%&|*+-/:<=>?@^~.")
 
-
 parseString :: Parser SchExp
 parseString = do
-    char '"'
+    _ <- char '"'
     x <- many (noneOf "\"")
-    char '"'
+    _ <- char '"'
     return $ String x
 
 parseSymbol :: Parser SchExp
@@ -40,48 +30,45 @@ parseSymbol = do
                _    -> Symbol symbol
 
 parseInt64 :: Parser SchExp
-parseInt64 = liftM (Int64 . read) $ do {
-    (char '+' >> many1 digit)
-    <|> many1 digit
-    <|> (do
-        x <- char '-'
-        y <- many1 digit
-        return $ x : y) }
+parseInt64 = do
+    sign <- try (oneOf "+-") <|> return '+'
+    int <- many1 digit
+    return $ Int64 $ let ri = read int in if sign == '-' then - ri else ri
 
+-- parse a floating point number
 -- D			[0-9]
--- L			[a-zA-Z_]
--- H			[a-fA-F0-9]
 -- E			[Ee][+-]?{D}+
--- {D}+{E}{FS}?		{ count(); return(CONSTANT); }
--- {D}*"."{D}+({E})?{FS}?	{ count(); return(CONSTANT); }
--- {D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
-
+-- [+-]?{D}+"."{D}*({E})?
+-- [+-]?{D}+"."{D}*
 parseFloat64 :: Parser SchExp
-parseFloat64 = --liftM (Float64 . read) $
-    do  intPart <- many1 digit
-        char '.'
+parseFloat64 = liftM (Float64 . read) $
+    do  sign    <- try (oneOf "+-") <|> return '+'
+        intPart <- many1 digit
+        _       <- char '.'
         decPart <- many digit
-        exp <- char 'E' <|> char 'e'
-        sign <- do (char '+' <|> char '-')
-        expPart <- many1 digit
-        return $ Float64 $ read $ (intPart ++ '.' : decPart ++ exp : sign : expPart)
+        try $ do
+                e       <- char 'E' <|> char 'e'
+                sign    <- char '+' <|> char '-'
+                expPart <- many1 digit
+                return $ intPart ++ '.' : decPart ++ e : sign : expPart
+            <|> (return $ intPart ++ '.' : decPart)
 
 parseExpr :: Parser SchExp
 parseExpr = do
      spaces >>
          ((try parseFloat64 <|> parseInt64)
-         <|> parseBlock '[' ']' ',' List
-         <|> parseBlock '{' '}' ';' Sequence
-         <|> parseBlock '(' ')' ',' Tuple
          <|> parseSymbol
          <|> parseOperator
-         <|> parseString) <* spaces
+         <|> parseString
+         <|> parseBlock '[' ']' ',' List
+         <|> parseBlock '{' '}' ';' Sequence
+         <|> parseBlock '(' ')' ',' Tuple) <* spaces
 
 parseBlock :: Char -> Char -> Char -> ([SchExp] -> SchExp) -> Parser SchExp
 parseBlock co cc sep f = do
-    char co
-    x <- (liftM f $ sepBy parseApp (char sep))
-    char cc
+    _   <- char co
+    x   <- (liftM f $ sepBy parseApp (char sep))
+    _   <- char cc
     return x
 
 parseApp :: Parser SchExp
@@ -93,10 +80,5 @@ parseApp = do
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "schizo" input of
-    Left err -> "No match: " ++ show err
-    Right v -> "Found value: " ++ show v
-
-readFloat64 :: String -> String
-readFloat64 input = case parse parseFloat64 "sch" input of
     Left err -> "No match: " ++ show err
     Right v -> "Found value: " ++ show v
