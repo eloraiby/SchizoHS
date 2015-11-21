@@ -57,17 +57,19 @@ parseInt64 = liftM (Int64 . read) $ do {
 -- {D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
 
 parseFloat64 :: Parser SchExp
-parseFloat64 = liftM (Float64 . read) $
+parseFloat64 = --liftM (Float64 . read) $
     do  intPart <- many1 digit
-        char 'E' <|> char 'e'
-        sign <- char '+' <|> char '-'
+        char '.'
+        decPart <- many digit
+        exp <- char 'E' <|> char 'e'
+        sign <- do (char '+' <|> char '-')
         expPart <- many1 digit
-        return $ intPart ++ sign : expPart
+        return $ Float64 $ read $ (intPart ++ '.' : decPart ++ exp : sign : expPart)
 
 parseExpr :: Parser SchExp
 parseExpr = do
      spaces >>
-         ((choice [parseFloat64, parseInt64])
+         ((try parseFloat64 <|> parseInt64)
          <|> parseBlock '[' ']' ',' List
          <|> parseBlock '{' '}' ';' Sequence
          <|> parseBlock '(' ')' ',' Tuple
@@ -94,3 +96,7 @@ readExpr input = case parse parseExpr "schizo" input of
     Left err -> "No match: " ++ show err
     Right v -> "Found value: " ++ show v
 
+readFloat64 :: String -> String
+readFloat64 input = case parse parseFloat64 "sch" input of
+    Left err -> "No match: " ++ show err
+    Right v -> "Found value: " ++ show v
