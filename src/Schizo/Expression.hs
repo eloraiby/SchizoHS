@@ -44,22 +44,22 @@ sxLookup s e =   Map.lookup s (expMacros e)
 -}
 eval    :: Environment
         -> SchExp
-        -> SchExp
+        -> (Environment, SchExp)
 
 eval env e =
     case e of
         Symbol s ->
             case sxLookup s env of
-                Just v -> eval env v
-                Nothing -> e    -- return the same symbol (unresolved)
+                Just v -> eval env v    -- recursively evaluate until all is exhausted
+                Nothing -> (env, e)     -- return the same symbol (unresolved)
 
         Application  (h, args) -> apply env h args
-        _ -> e
+        _ -> (env, e)
 
 apply   :: Environment
         -> SchExp
         -> [SchExp]
-        -> SchExp
+        -> (Environment, SchExp)
 
 apply env e args = error "not implemented"
 
